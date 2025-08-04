@@ -1,11 +1,12 @@
 from flask import Flask, render_template, request, jsonify
 from openai import OpenAI
+import os
 
 app = Flask(__name__)
 
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
-    api_key="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",
+    api_key=os.environ.get('OPENAI_API_KEY', "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"),
 )
 
 # Home page with a form
@@ -149,4 +150,11 @@ def generate_ai_itinerary(details):
      
 # Run the app
 if __name__ == "__main__":
-    app.run(debug=True)
+    import os
+    port = int(os.environ.get('PORT', 5000))
+    print(f"Starting app on port {port}")
+    try:
+        app.run(host='0.0.0.0', port=port, debug=False)
+    except Exception as e:
+        print(f"Error starting app: {e}")
+        raise
