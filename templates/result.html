@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Itinerary - AI Recommender</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>🌟 Your Personalized Itinerary</h1>
+        
+        <!-- Show trip details if no error -->
+        {% if not error %}
+        <div class="trip-info">
+            <strong>Trip Details:</strong> {{ days }} days in {{ location }}, New Zealand (Age: {{ age }})
+        </div>
+        {% endif %}
+        
+        <!-- Show error message if there's an error -->
+        {% if error %}
+        <div class="error">
+            <h3>❌ Something went wrong:</h3>
+            <p>{{ error }}</p>
+        </div>
+        {% else %}
+        <!-- Show the itinerary if no error -->
+        <div class="itinerary">
+            <strong>🗺️ My Name is Hadi as AI Itinerary expert:</strong><br><br>
+            {{ itinerary }}
+        </div>
+        {% endif %}
+        
+        <a href="/" class="back-button">🔄 Create Another Itinerary</a>
+    </div>
+</body>
+</html>

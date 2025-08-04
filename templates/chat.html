@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hadi - AI Travel Assistant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Chat Header -->
+        <div class="chat-header">
+            <div class="header-content">
+                <div class="avatar">🤖</div>
+                <div class="header-text">
+                    <h2>Hadi</h2>
+                    <p>AI Travel Assistant</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Messages Area -->
+        <div class="chat-messages" id="chatMessages">
+            <!-- Welcome message from AI -->
+            <div class="message ai-message">
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <div class="message-text">
+                        Hi! I'm Hadi, your AI travel expert for New Zealand! 🗺️<br><br>
+                        Please tell me your travel details in this format:<br>
+                        "X days in [City], I'm X years old"<br><br>
+                        For example:<br>
+                        • "5 days in Auckland, I'm 25 years old"<br>
+                        • "3 days in Wellington, I'm 30 years old"<br><br>
+                        Just type it like that and I'll create your perfect itinerary! ✈️                    
+                    </div>
+                    <div class="message-time">Now</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Input Area -->
+        <div class="chat-input">
+            <div class="input-container">
+                <input 
+                    type="text" 
+                    id="userInput" 
+                    placeholder="Type your travel details..."
+                    autocomplete="off"
+                >
+                <button id="sendButton" onclick="sendMessage()">
+                    <span>Send</span> ✈️
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading indicator -->
+    <div id="loadingIndicator" class="loading-hidden">
+        <div class="message ai-message">
+            <div class="message-avatar">🤖</div>
+            <div class="message-content">
+                <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // JavaScript will go here in the next step
+        // Chatbot needs to remember the previous messages
+        // Flask needs to know the conversation state
+        // Track the conversation where the user is in
+        let conversationState = 'waiting_for_details';
+        // Store the information about the user
+        let userDetails = {};
+
+        function sendMessage() {
+            // Get the user's message
+            const input = document.getElementById('userInput');
+            const message = input.value.trim();
+            
+            // If the user doesn't enter anything, don't send the message
+            if (message === '') return;
+            
+            // Add user message to chat
+            addMessage(message, 'user');
+            input.value = '';
+            
+            // Show loading indicator
+            showLoading();
+            
+            // Send to Flask server
+            fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: message,
+                    state: conversationState,
+                    details: userDetails
+                })
+            })
+             // AJAX request to refresh the page without reloading
+            // Get the response from the Flask server
+            .then(response => response.json())
+            // Show the response from the AI
+            .then(data => {
+                hideLoading();
+                // Add the response from the AI to the chat messages container
+                // Show the response from the AI
+                addMessage(data.response, 'ai');
+                // Update the conversation state
+                if (data.state) {
+                    conversationState = data.state;
+                }
+                if (data.details) {
+                    userDetails = data.details;
+                }
+            })
+            .catch(error => {
+                hideLoading();
+                addMessage('Sorry, something went wrong. Please try again.', 'ai');
+            });
+        }
+        
+        // Chat bubble function
+        // Sender is either 'ai' or 'user'
+        function addMessage(text, sender) {
+            // Get the chat messages container
+            const messagesContainer = document.getElementById('chatMessages');
+            // Create a new message div
+            const messageDiv = document.createElement('div');
+            // Add the class to the message div depending on the sender
+            messageDiv.className = `message ${sender}-message`;
+            // Add the avatar to the message div
+            const avatar = sender === 'ai' ? '🤖' : '👤';
+            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            messageDiv.innerHTML = `
+                <div class="message-avatar">${avatar}</div>
+                <div class="message-content">
+                    <div class="message-text">${text}</div>
+                    <div class="message-time">${time}</div>
+                </div>
+            `;
+            
+            // Add the message div to the chat messages container
+            messagesContainer.appendChild(messageDiv);
+            // Scroll to the bottom of the chat messages container
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function showLoading() {
+            // Remove any existing loading indicator first
+            hideLoading();
+            
+            // Create new loading indicator
+            const messagesContainer = document.getElementById('chatMessages');
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'currentLoading';
+            loadingDiv.className = 'message ai-message';
+            
+            loadingDiv.innerHTML = `
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <div class="typing-indicator">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            `;
+            
+            messagesContainer.appendChild(loadingDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function hideLoading() {
+            // Remove the current loading indicator
+            const currentLoading = document.getElementById('currentLoading');
+            if (currentLoading) {
+                currentLoading.remove();
+            }
+        }
+
+        // Allow Enter key to send messages
+        document.getElementById('userInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
