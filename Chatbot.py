@@ -4,10 +4,22 @@ import os
 
 app = Flask(__name__)
 
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.environ.get('OPENAI_API_KEY', "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"),
-)
+openrouter_api_key = os.environ.get('OPENAI_API_KEY')
+if not openrouter_api_key:
+    # Don't crash the whole server on deployment.
+    # Render can still show the chat page; the /chat call will return a helpful error.
+    print("WARNING: OPENAI_API_KEY is not set. The /chat endpoint will fail until it's configured.")
+    client = None
+else:
+    # Note: OpenRouter is compatible with OpenAI's API style, so we reuse the OpenAI client.
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=openrouter_api_key,
+    )
+
+# Safe startup debug (do not print the key itself).
+if client is not None:
+    print(f"OpenRouter API key loaded: yes (length={len(openrouter_api_key)})")
 
 # Home page with a form
 @app.route("/")
@@ -101,6 +113,8 @@ def handle_follow_up(message, existing_details):
 
 def generate_ai_itinerary(details):
     """Process the firm and generate itinerary"""
+    if client is None:
+        raise RuntimeError("Server is not configured: OPENAI_API_KEY (OpenRouter key) is missing on this host.")
     
     # AI logic
     prompt = f"""
@@ -134,19 +148,53 @@ def generate_ai_itinerary(details):
     Please use this exact format with clear sections and line breaks.
     """
 
+    # Keep track for better error messages in deployments.
+    models_tried = []
+    models_tried_str = ""
     try:
-        completion = client.chat.completions.create(
-            model="mistralai/mistral-7b-instruct:free",  # Free model on OpenRouter
-            messages=[
-                {"role": "system", "content": "You are a professional itinerary recommender."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=1500,
-            temperature=0.7
-        )
+        # OpenRouter model IDs and availability vary by account/provider.
+        # Prefer broadly-available OpenAI-compatible models first, then try Mistral.
+        primary_model = os.environ.get("OPENROUTER_MODEL")
+        fallback_models = [
+            "openai/gpt-4o-mini",
+            "openai/gpt-3.5-turbo-0125",
+            "mistralai/mistral-7b-instruct",
+            "mistralai/mistral-7b-instruct:free",
+        ]
+        candidate_models = [m.strip() for m in ([primary_model] if primary_model else []) + fallback_models if m and m.strip()]
+        models_tried_str = ", ".join(candidate_models)
+
+        last_error = None
+        completion = None
+        for model in candidate_models:
+            try:
+                print(f"Trying OpenRouter model: {model}")
+                models_tried.append(model)
+                completion = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a professional itinerary recommender."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_tokens=1500,
+                    temperature=0.7,
+                )
+                break
+            except Exception as e:
+                last_error = e
+                print(f"Model failed: {model} ({type(e).__name__})")
+
+        if completion is None:
+            raise last_error if last_error else RuntimeError("No completion returned.")
+
         return f"🎉 Here's your personalized {details['days']}-day {details['location']} itinerary!\n\n" + completion.choices[0].message.content + "\n\n---\n\nWould you like me to create another itinerary? (yes/no)"
     except Exception as e:
-        return f"Sorry, I encountered an error generating your itinerary: {e}"
+        status_code = getattr(e, "status_code", None)
+        return (
+            "Sorry, I encountered an error generating your itinerary: "
+            f"{type(e).__name__} (status: {status_code}). Details: {e}. "
+            f"Models tried: [{models_tried_str}]."
+        )
      
 # Run the app
 if __name__ == "__main__":
